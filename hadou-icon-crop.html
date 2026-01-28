@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三國志覇道 アイコン切り抜きツール</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            min-height: 100vh;
+            padding: 0;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 0;
+        }
+
+        /* ヘッダー */
+        header {
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            padding: 24px 32px;
+        }
+
+        h1 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #f0f6fc;
+            letter-spacing: -0.02em;
+        }
+
+        /* タブ */
+        .tabs {
+            background: #161b22;
+            display: flex;
+            gap: 0;
+            padding: 0 32px;
+            border-bottom: 1px solid #30363d;
+        }
+
+        .tab {
+            padding: 12px 16px;
+            background: transparent;
+            border: none;
+            color: #8b949e;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: color 0.2s;
+            border-bottom: 2px solid transparent;
+            position: relative;
+        }
+
+        .tab:hover {
+            color: #c9d1d9;
+        }
+
+        .tab.active {
+            color: #58a6ff;
+            border-bottom-color: #58a6ff;
+        }
+
+        /* メインコンテンツ */
+        .card {
+            background: #0d1117;
+            padding: 40px 32px;
+        }
+
+        /* ドロップゾーン */
+        .drop-zone {
+            border: 2px dashed #30363d;
+            border-radius: 6px;
+            padding: 80px 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #161b22;
+            margin-bottom: 40px;
+        }
+
+        .drop-zone:hover {
+            border-color: #58a6ff;
+            background: #1c2128;
+        }
+
+        .drop-zone.drag-over {
+            border-color: #58a6ff;
+            background: #1c2128;
+            border-style: solid;
+        }
+
+        .drop-zone p {
+            font-size: 15px;
+            margin-bottom: 8px;
+            color: #c9d1d9;
+            font-weight: 500;
+        }
+
+        .drop-zone small {
+            color: #8b949e;
+            font-size: 13px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        /* プレビューセクション */
+        .preview-section {
+            margin-bottom: 40px;
+        }
+
+        .preview-section h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #f0f6fc;
+            margin-bottom: 16px;
+            letter-spacing: -0.01em;
+        }
+
+        .no-preview {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 240px;
+            background: #161b22;
+            border-radius: 6px;
+            padding: 32px;
+            color: #6e7681;
+            font-size: 14px;
+        }
+
+        .upload-count {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+            background: #161b22;
+            border-radius: 6px;
+            color: #58a6ff;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        /* プレビューグリッド */
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 16px;
+        }
+
+        .preview-item {
+            background: #0d1117;
+            border-radius: 6px;
+            padding: 12px;
+            border: 1px solid #30363d;
+        }
+
+        .preview-image-container {
+            width: 180px;
+            height: 180px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: 
+                repeating-conic-gradient(#30363d 0% 25%, #161b22 0% 50%) 
+                50% / 20px 20px;
+            border-radius: 6px;
+            margin: 0 auto 8px;
+        }
+
+        .preview-image-container img {
+            max-width: 180px;
+            max-height: 180px;
+            display: block;
+        }
+
+        .preview-filename {
+            font-size: 12px;
+            color: #8b949e;
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-bottom: 8px;
+        }
+
+        .ocr-name-input {
+            width: 100%;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            padding: 6px 8px;
+            color: #58a6ff;
+            font-size: 12px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .ocr-name-input:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+
+        .ocr-name-input::placeholder {
+            color: #484f58;
+        }
+
+        /* 処理オプション */
+        .process-options {
+            background: #161b22;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 40px;
+        }
+
+        .process-options h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #f0f6fc;
+            margin-bottom: 16px;
+            letter-spacing: -0.01em;
+        }
+
+        .option-item {
+            margin-bottom: 16px;
+        }
+
+        .option-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .option-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        .option-checkbox input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #58a6ff;
+        }
+
+        .option-checkbox label {
+            font-size: 14px;
+            color: #c9d1d9;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .option-sub {
+            margin-left: 28px;
+            margin-top: 12px;
+        }
+
+        .option-sub-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .option-sub-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .option-sub-item label {
+            font-size: 13px;
+            color: #8b949e;
+            min-width: 80px;
+        }
+
+        .option-sub-item input[type="range"] {
+            flex: 1;
+            height: 4px;
+            background: #30363d;
+            border-radius: 2px;
+            outline: none;
+            appearance: none;
+        }
+
+        .option-sub-item input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #58a6ff;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .option-sub-item input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #58a6ff;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .option-sub-item input[type="text"] {
+            flex: 1;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 6px 12px;
+            color: #c9d1d9;
+            font-size: 13px;
+        }
+
+        .option-sub-item input[type="text"]:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+
+        .option-sub-item .value-display {
+            min-width: 40px;
+            text-align: center;
+            background: #0d1117;
+            color: #58a6ff;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1px solid #30363d;
+        }
+
+        .ocr-status {
+            font-size: 12px;
+            color: #8b949e;
+            margin-top: 8px;
+        }
+
+        .ocr-status.processing {
+            color: #58a6ff;
+        }
+
+        .ocr-status.success {
+            color: #3fb950;
+        }
+
+        .ocr-status.error {
+            color: #f85149;
+        }
+
+        /* コントロール（削除） */
+        .button-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        button {
+            flex: 1;
+            padding: 10px 16px;
+            background: #238636;
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            background: #2ea043;
+        }
+
+        button:active {
+            background: #2ea043;
+            transform: scale(0.98);
+        }
+
+        button:disabled {
+            background: #21262d;
+            color: #484f58;
+            cursor: not-allowed;
+        }
+
+        button.secondary {
+            background: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+        }
+
+        button.secondary:hover:not(:disabled) {
+            background: #30363d;
+            border-color: #8b949e;
+        }
+
+        button.secondary:disabled {
+            background: #161b22;
+            border-color: #21262d;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>三國志覇道 アイコン切り抜きツール</h1>
+        </div>
+    </header>
+
+    <div class="tabs">
+        <div class="container" style="display: flex;">
+            <button class="tab active" onclick="switchTab('treasure', event)">名宝切り抜き</button>
+            <button class="tab" onclick="switchTab('general', event)">武将切り抜き</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <!-- 名宝タブ -->
+            <div id="treasure-tab" class="tab-content active">
+                <div class="drop-zone" id="treasure-drop-zone" onclick="document.getElementById('treasure-file').click()">
+                    <p>画像をドロップまたはクリック</p>
+                    <small>1920×1080のスクリーンショットを推奨（複数選択可）</small>
+                </div>
+                <input type="file" id="treasure-file" accept="image/*" multiple onchange="handleFileSelect('treasure', this.files)">
+
+                <div class="preview-section">
+                    <div id="treasure-items">
+                        <div class="no-preview">画像をアップロードしてください</div>
+                    </div>
+                </div>
+
+                <div class="process-options">
+                    <h3>処理オプション</h3>
+                    <div class="option-item">
+                        <div class="option-checkbox">
+                            <input type="checkbox" id="treasure-crop" checked onchange="updateAllPreviews('treasure')">
+                            <label for="treasure-crop">切り取り (180×180)</label>
+                        </div>
+                    </div>
+                    <div class="option-item">
+                        <div class="option-checkbox">
+                            <input type="checkbox" id="treasure-transparent" checked onchange="toggleTransparentOptions('treasure')">
+                            <label for="treasure-transparent">背景透過</label>
+                        </div>
+                        <div class="option-sub" id="treasure-transparent-sub">
+                            <div class="option-sub-item">
+                                <label>許容範囲:</label>
+                                <input type="range" id="treasure-tolerance" min="0" max="100" value="35" oninput="updateToleranceValue('treasure')">
+                                <span class="value-display" id="treasure-tolerance-value">35</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="option-item">
+                        <div class="option-checkbox">
+                            <input type="checkbox" id="treasure-rename" onchange="toggleRenameOptions('treasure')">
+                            <label for="treasure-rename">ファイル名変更</label>
+                        </div>
+                        <div class="option-sub" id="treasure-rename-sub" style="display: none;">
+                            <div class="option-sub-item">
+                                <label>プレフィックス:</label>
+                                <input type="text" id="treasure-prefix" placeholder="例: icon_" value="">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="option-item">
+                        <div class="option-checkbox">
+                            <input type="checkbox" id="treasure-ocr" onchange="toggleOcrOptions('treasure')">
+                            <label for="treasure-ocr">OCRでファイル名取得</label>
+                        </div>
+                        <div class="option-sub" id="treasure-ocr-sub" style="display: none;">
+                            <div class="ocr-status" id="treasure-ocr-status"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button id="treasure-save-all-btn" onclick="saveAllImages('treasure')" disabled>保存</button>
+                    <button class="secondary" onclick="resetTab('treasure')">クリア</button>
+                </div>
+            </div>
+
+            <!-- 武将タブ -->
+            <div id="general-tab" class="tab-content">
+                <div class="drop-zone" id="general-drop-zone" onclick="document.getElementById('general-file').click()">
+                    <p>画像をドロップまたはクリック</p>
+                    <small>1920×1080のスクリーンショットを推奨（複数選択可）</small>
+                </div>
+                <input type="file" id="general-file" accept="image/*" multiple onchange="handleFileSelect('general', this.files)">
+
+                <div class="preview-section">
+                    <div id="general-items">
+                        <div class="no-preview">画像をアップロードしてください</div>
+                    </div>
+                </div>
+
+                <div class="process-options">
+                    <h3>処理オプション</h3>
+                    <div class="option-item">
+                        <div class="option-checkbox">
+                            <input type="checkbox" id="general-crop" checked onchange="updateAllPreviews('general')">
+                            <label for="general-crop">切り取り (180×180)</label>
+                        </div>
+                    </div>
+                    <div class="option-item">
+                        <div class="option-checkbox">
+                            <input type="checkbox" id="general-transparent" checked onchange="toggleTransparentOptions('general')">
+                            <label for="general-transparent">背景透過</label>
+                        </div>
+                        <div class="option-sub" id="general-transparent-sub">
+                            <div class="option-sub-item">
+                                <label>許容範囲:</label>
+                                <input type="range" id="general-tolerance" min="0" max="100" value="35" oninput="updateToleranceValue('general')">
+                                <span class="value-display" id="general-tolerance-value">35</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="option-item">
+                        <div class="option-checkbox">
+                            <input type="checkbox" id="general-rename" onchange="toggleRenameOptions('general')">
+                            <label for="general-rename">ファイル名変更</label>
+                        </div>
+                        <div class="option-sub" id="general-rename-sub" style="display: none;">
+                            <div class="option-sub-item">
+                                <label>プレフィックス:</label>
+                                <input type="text" id="general-prefix" placeholder="例: icon_" value="">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="option-item">
+                        <div class="option-checkbox">
+                            <input type="checkbox" id="general-ocr" onchange="toggleOcrOptions('general')">
+                            <label for="general-ocr">OCRでファイル名取得</label>
+                        </div>
+                        <div class="option-sub" id="general-ocr-sub" style="display: none;">
+                            <div class="ocr-status" id="general-ocr-status"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button id="general-save-all-btn" onclick="saveAllImages('general')" disabled>保存</button>
+                    <button class="secondary" onclick="resetTab('general')">クリア</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const state = {
+            treasure: { items: [] },
+            general: { items: [] }
+        };
+
+        const defaultCoords = {
+            treasure: { x: 147, y: 404 },
+            general: { x: 92, y: 204 }
+        };
+
+        const ocrRegions = {
+            treasure: { 
+                name: { x: 1261, y: 429, width: 510, height: 54 },    // 名宝名
+                rarity: { x: 147, y: 404, width: 78, height: 40 }      // 名宝レアリティ
+            },
+            general: { 
+                name: { x: 137, y: 385, width: 110, height: 28 },     // 武将名
+                rarity: { x: 93, y: 213, width: 59, height: 37 }       // 武将レアリティ
+            }
+        };
+
+        let itemIdCounter = 0;
+        let ocrWorker = null;
+
+        function toggleTransparentOptions(type) {
+            const checked = document.getElementById(`${type}-transparent`).checked;
+            const sub = document.getElementById(`${type}-transparent-sub`);
+            sub.style.display = checked ? 'block' : 'none';
+            
+            // プレビュー更新
+            updateAllPreviews(type);
+        }
+
+        function toggleRenameOptions(type) {
+            const checked = document.getElementById(`${type}-rename`).checked;
+            const sub = document.getElementById(`${type}-rename-sub`);
+            sub.style.display = checked ? 'block' : 'none';
+        }
+
+        function toggleOcrOptions(type) {
+            const checked = document.getElementById(`${type}-ocr`).checked;
+            const sub = document.getElementById(`${type}-ocr-sub`);
+            sub.style.display = checked ? 'block' : 'none';
+            
+            if (checked) {
+                // OCR処理を開始
+                performOCR(type);
+            }
+        }
+
+        function updateToleranceValue(type) {
+            const value = document.getElementById(`${type}-tolerance`).value;
+            document.getElementById(`${type}-tolerance-value`).textContent = value;
+            
+            // プレビュー更新
+            updateAllPreviews(type);
+        }
+
+        function updateAllPreviews(type) {
+            state[type].items.forEach(item => {
+                updateCropForItem(type, item.id);
+            });
+            renderItems(type);
+        }
+
+        async function performOCR(type) {
+            const items = state[type].items;
+            if (items.length === 0) return;
+
+            const statusEl = document.getElementById(`${type}-ocr-status`);
+            statusEl.textContent = 'OCR処理中...';
+            statusEl.className = 'ocr-status processing';
+
+            // Tesseract.jsワーカー初期化
+            if (!ocrWorker) {
+                console.log('Initializing OCR worker...');
+                ocrWorker = await Tesseract.createWorker('jpn');
+                console.log('OCR worker ready');
+            }
+
+            const regions = ocrRegions[type];
+            console.log('OCR regions:', regions);
+            let processed = 0;
+
+            for (const item of items) {
+                try {
+                    console.log('Processing:', item.name);
+
+                    // レアリティ認識
+                    console.log('Recognizing rarity at:', regions.rarity);
+                    const rarityCanvas = document.createElement('canvas');
+                    rarityCanvas.width = regions.rarity.width;
+                    rarityCanvas.height = regions.rarity.height;
+                    const rarityCtx = rarityCanvas.getContext('2d');
+                    
+                    rarityCtx.drawImage(
+                        item.image,
+                        regions.rarity.x, regions.rarity.y, regions.rarity.width, regions.rarity.height,
+                        0, 0, regions.rarity.width, regions.rarity.height
+                    );
+
+                    const { data: { text: rarityText } } = await ocrWorker.recognize(rarityCanvas);
+                    const rarity = rarityText.replace(/\s+/g, '').trim();
+                    console.log('Rarity recognized:', `"${rarityText}"` , '→', `"${rarity}"`);
+
+                    // 名前認識
+                    console.log('Recognizing name at:', regions.name);
+                    const nameCanvas = document.createElement('canvas');
+                    nameCanvas.width = regions.name.width;
+                    nameCanvas.height = regions.name.height;
+                    const nameCtx = nameCanvas.getContext('2d');
+                    
+                    nameCtx.drawImage(
+                        item.image,
+                        regions.name.x, regions.name.y, regions.name.width, regions.name.height,
+                        0, 0, regions.name.width, regions.name.height
+                    );
+
+                    const { data: { text: nameText } } = await ocrWorker.recognize(nameCanvas);
+                    const name = nameText.replace(/\s+/g, '').trim();
+                    console.log('Name recognized:', `"${nameText}"`, '→', `"${name}"`);
+                    
+                    if (name) {
+                        // ファイル名生成
+                        let filename = '';
+                        
+                        if (type === 'treasure') {
+                            // 名宝: Rが含まれていればUR→UR名宝名.png、それ以外はSSR→名宝名.png
+                            if (rarity.includes('R')) {
+                                filename = `UR${name}`;
+                                console.log('Detected as UR (contains R)');
+                            } else {
+                                filename = name;
+                                console.log('Detected as SSR (no R)');
+                            }
+                        } else {
+                            // 武将: レアリティ+武将名.png
+                            filename = `${rarity}${name}`;
+                        }
+                        
+                        console.log('Generated filename:', filename);
+                        item.ocrName = filename;
+                        item.ocrRarity = rarity;
+                        item.ocrBaseName = name;
+                        processed++;
+                    } else {
+                        console.warn('Name is empty for:', item.name);
+                    }
+
+                } catch (error) {
+                    console.error('OCR error for', item.name, error);
+                }
+            }
+
+            console.log(`OCR complete: ${processed}/${items.length}`);
+            statusEl.innerHTML = `${processed}/${items.length}件の名前を認識しました<br><small>認識結果は下のプレビューで確認・修正できます</small>`;
+            statusEl.className = 'ocr-status success';
+            
+            // プレビューを更新して認識結果を表示
+            renderItems(type);
+        }
+
+        function switchTab(tabName, event) {
+            // タブボタンの切り替え
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // コンテンツの切り替え
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+        }
+
+        // ドラッグ&ドロップ設定
+        ['treasure', 'general'].forEach(type => {
+            const dropZone = document.getElementById(`${type}-drop-zone`);
+            
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('drag-over');
+            });
+
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('drag-over');
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+                const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+                if (files.length > 0) {
+                    handleFileSelect(type, files);
+                }
+            });
+        });
+
+        function handleFileSelect(type, files) {
+            console.log('handleFileSelect called:', type, files);
+            if (!files || files.length === 0) {
+                console.log('No files selected');
+                return;
+            }
+
+            Array.from(files).forEach(file => {
+                console.log('Processing file:', file.name);
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    console.log('File loaded:', file.name);
+                    const img = new Image();
+                    img.onload = () => {
+                        console.log('Image loaded:', file.name);
+                        const itemId = itemIdCounter++;
+                        const coords = { ...defaultCoords[type] };
+                        const item = {
+                            id: itemId,
+                            name: file.name,
+                            image: img,
+                            coords: coords,
+                            canvas: null
+                        };
+                        state[type].items.push(item);
+                        console.log('Item added, rendering...');
+                        renderItems(type);
+                        updateCropForItem(type, itemId);
+                    };
+                    img.onerror = (error) => {
+                        console.error('Image load error:', error);
+                    };
+                    img.src = e.target.result;
+                };
+                reader.onerror = (error) => {
+                    console.error('FileReader error:', error);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function renderItems(type) {
+            console.log('renderItems called:', type);
+            const container = document.getElementById(`${type}-items`);
+            const items = state[type].items;
+            console.log('Items count:', items.length);
+
+            if (items.length === 0) {
+                container.innerHTML = '<div class="no-preview">画像をアップロードしてください</div>';
+                document.getElementById(`${type}-save-all-btn`).disabled = true;
+                return;
+            }
+
+            const doOCR = document.getElementById(`${type}-ocr`).checked;
+
+            // アップロード数表示
+            let html = `<div class="upload-count">${items.length}枚の画像をアップロード済み</div>`;
+            
+            // プレビューグリッド
+            html += '<div class="preview-grid">';
+            items.forEach(item => {
+                if (item.canvas) {
+                    const dataUrl = item.canvas.toDataURL();
+                    html += `
+                        <div class="preview-item">
+                            <div class="preview-image-container">
+                                <img src="${dataUrl}" alt="${item.name}">
+                            </div>
+                            <div class="preview-filename">${item.name}</div>`;
+                    
+                    // OCRが有効な場合、認識結果を編集可能な入力欄として表示
+                    if (doOCR) {
+                        const ocrValue = item.ocrName || '';
+                        html += `
+                            <input type="text" 
+                                   class="ocr-name-input" 
+                                   placeholder="認識中..." 
+                                   value="${ocrValue}"
+                                   onchange="updateOcrName('${type}', ${item.id}, this.value)">`;
+                    }
+                    
+                    html += `
+                        </div>
+                    `;
+                }
+            });
+            html += '</div>';
+            
+            container.innerHTML = html;
+            document.getElementById(`${type}-save-all-btn`).disabled = false;
+            console.log('Render complete');
+        }
+
+        function updateOcrName(type, itemId, newName) {
+            const item = state[type].items.find(i => i.id === itemId);
+            if (item) {
+                item.ocrName = newName.trim();
+            }
+        }
+
+        function updateCropForItem(type, itemId) {
+            const item = state[type].items.find(i => i.id === itemId);
+            if (!item) return;
+
+            // オプション取得（DOM要素が存在しない場合はデフォルト値）
+            const cropEl = document.getElementById(`${type}-crop`);
+            const transparentEl = document.getElementById(`${type}-transparent`);
+            const toleranceEl = document.getElementById(`${type}-tolerance`);
+            
+            const doCrop = cropEl ? cropEl.checked : true;
+            const doTransparent = transparentEl ? transparentEl.checked : true;
+            const tolerance = toleranceEl ? parseInt(toleranceEl.value) : 35;
+
+            // Canvas作成
+            const canvas = document.createElement('canvas');
+            canvas.width = 180;
+            canvas.height = 180;
+            const ctx = canvas.getContext('2d');
+
+            // 切り抜き
+            if (doCrop) {
+                ctx.drawImage(
+                    item.image,
+                    item.coords.x, item.coords.y, 180, 180,
+                    0, 0, 180, 180
+                );
+            } else {
+                // 切り取りしない場合は元画像をそのまま（リサイズ）
+                ctx.drawImage(item.image, 0, 0, 180, 180);
+            }
+
+            // 背景透過処理
+            if (doTransparent) {
+                applyTransparency(ctx, 180, 180, tolerance);
+            }
+
+            item.canvas = canvas;
+        }
+
+        function applyTransparency(ctx, width, height, tolerance) {
+            const imageData = ctx.getImageData(0, 0, width, height);
+            const data = imageData.data;
+
+            // 外周のみを透過対象とする（中心部分は保護）
+            const edgeThickness = Math.floor(tolerance / 2); // 許容範囲を外周の厚さに変換
+
+            // 四隅のピクセルから背景色を推定
+            const corners = [
+                { x: 0, y: 0 },
+                { x: width - 1, y: 0 },
+                { x: 0, y: height - 1 },
+                { x: width - 1, y: height - 1 }
+            ];
+
+            let avgR = 0, avgG = 0, avgB = 0;
+            corners.forEach(corner => {
+                const index = (corner.y * width + corner.x) * 4;
+                avgR += data[index];
+                avgG += data[index + 1];
+                avgB += data[index + 2];
+            });
+            avgR = Math.round(avgR / 4);
+            avgG = Math.round(avgG / 4);
+            avgB = Math.round(avgB / 4);
+
+            // 外周部分のみ透過処理
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    // 中心からの距離を計算（外周判定）
+                    const distFromEdge = Math.min(x, y, width - 1 - x, height - 1 - y);
+                    
+                    // 外周部分のみ処理（edgeThickness以内）
+                    if (distFromEdge < edgeThickness) {
+                        const index = (y * width + x) * 4;
+                        const r = data[index];
+                        const g = data[index + 1];
+                        const b = data[index + 2];
+
+                        // 色の差分を計算
+                        const diff = Math.sqrt(
+                            Math.pow(r - avgR, 2) +
+                            Math.pow(g - avgG, 2) +
+                            Math.pow(b - avgB, 2)
+                        );
+
+                        // 背景色に近い場合は透過
+                        // 外周に近いほど透過しやすくする（グラデーション効果）
+                        const threshold = 80 * (1 - distFromEdge / edgeThickness);
+                        if (diff < threshold) {
+                            data[index + 3] = 0; // 完全透過
+                        } else if (diff < threshold * 1.5) {
+                            // 境界部分は半透明に（アンチエイリアス効果）
+                            data[index + 3] = Math.floor(data[index + 3] * (diff / (threshold * 1.5)));
+                        }
+                    }
+                }
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        function saveAllImages(type) {
+            const items = state[type].items;
+            if (items.length === 0) return;
+
+            const now = new Date();
+            const timestamp = now.toISOString().replace(/[-:]/g, '').replace('T', '_').split('.')[0];
+
+            // オプション取得
+            const doRename = document.getElementById(`${type}-rename`).checked;
+            const prefix = document.getElementById(`${type}-prefix`).value;
+            const doOCR = document.getElementById(`${type}-ocr`).checked;
+
+            // 1枚だけならPNGで直接ダウンロード
+            if (items.length === 1) {
+                const item = items[0];
+                if (!item.canvas) return;
+
+                // ファイル名生成
+                let baseName = item.name.replace(/\.[^/.]+$/, '');
+                if (doOCR && item.ocrName) {
+                    baseName = item.ocrName;
+                }
+                const filename = doRename ? `${prefix}${baseName}.png` : `${baseName}.png`;
+                
+                item.canvas.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                });
+                return;
+            }
+
+            // 2枚以上ならZIPで保存
+            const zip = new JSZip();
+            const folder = zip.folder(`${type}_icons_${timestamp}`);
+
+            let completed = 0;
+            items.forEach((item) => {
+                if (!item.canvas) return;
+
+                // ファイル名生成
+                let baseName = item.name.replace(/\.[^/.]+$/, '');
+                if (doOCR && item.ocrName) {
+                    baseName = item.ocrName;
+                }
+                const filename = doRename ? `${prefix}${baseName}.png` : `${baseName}.png`;
+                
+                item.canvas.toBlob((blob) => {
+                    folder.file(filename, blob);
+                    completed++;
+
+                    // すべて完了したらZIPダウンロード
+                    if (completed === items.length) {
+                        zip.generateAsync({ 
+                            type: 'blob',
+                            compression: 'DEFLATE',
+                            compressionOptions: { level: 9 }
+                        }).then((content) => {
+                            const url = URL.createObjectURL(content);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `${type}_icons_${timestamp}.zip`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                        });
+                    }
+                });
+            });
+        }
+
+        function resetTab(type) {
+            state[type].items = [];
+            renderItems(type);
+            document.getElementById(`${type}-file`).value = '';
+        }
+    </script>
+</body>
+</html>
